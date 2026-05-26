@@ -1,0 +1,11 @@
+{
+  "email": "info@hxpmold.com",
+  "email_password": "YOUR_PASSWORD",
+  "imap_server": "imap.mxhichina.com",
+  "imap_port": 993,
+  "smtp_server": "smtp.mxhichina.com",
+  "smtp_port": 465,
+  "projects_folder": "D:\\claude\\外贸项目追踪系统",
+  "reminder_days": 1,
+  "feishu_webhook": "YOUR_FEISHU_WEBHOOK_URL"
+}

@@ -1,0 +1,4 @@
+requests
+firebase-admin>=6.0.0
+win10toast
+apscheduler

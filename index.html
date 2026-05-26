@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>外贸项目追踪系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    header { background: #2c3e50; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 24px; }
+    .header-actions button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-left: 10px; }
+    .filters { background: white; padding: 15px 20px; display: flex; gap: 15px; flex-wrap: wrap; border-bottom: 1px solid #ddd; }
+    .filters select, .filters input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+    .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 20px; }
+    .project-card { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+    .project-card:hover { transform: translateY(-5px); }
+    .project-card-header { padding: 15px; color: white; }
+    .project-card-header h3 { font-size: 16px; margin-bottom: 5px; }
+    .project-card-header .stage { font-size: 12px; opacity: 0.9; }
+    .project-card-body { padding: 15px; }
+    .project-card-body .info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+    .email-count { color: #e74c3c; font-weight: bold; }
+    .pending-count { color: #f39c12; font-weight: bold; }
+
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow: auto; }
+    .modal.active { display: flex; align-items: center; justify-content: center; }
+    .modal-content { background: white; border-radius: 10px; width: 90%; max-width: 900px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+    .modal-header { background: #2c3e50; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h2 { font-size: 20px; }
+    .close-btn { background: none; border: none; color: white; font-size: 28px; cursor: pointer; }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+    .tab { padding: 12px 24px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { border-bottom-color: #3498db; color: #3498db; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .stage-flow { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; }
+    .stage-flow .stage { padding: 8px 16px; background: #ddd; border-radius: 20px; font-size: 13px; }
+    .stage-flow .stage.active { background: #3498db; color: white; }
+    .stage-flow .stage.completed { background: #27ae60; color: white; }
+
+    .project-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .meta-item { background: #f9f9f9; padding: 15px; border-radius: 5px; }
+    .meta-item label { display: block; color: #666; font-size: 12px; margin-bottom: 5px; }
+    .meta-item span { font-size: 16px; font-weight: bold; }
+
+    .keywords-section { margin-bottom: 20px; }
+    .keywords-section input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-top: 10px; }
+    .keywords-section button { margin-top: 10px; background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; }
+
+    .email-list, .pending-list { max-height: 400px; overflow-y: auto; }
+    .email-item { border: 1px solid #eee; border-radius: 5px; padding: 15px; margin-bottom: 10px; }
+    .email-item h4 { font-size: 14px; margin-bottom: 5px; }
+    .email-item .meta { color: #666; font-size: 12px; margin-bottom: 10px; }
+    .email-item .body { font-size: 13px; color: #333; background: #f9f9f9; padding: 10px; border-radius: 5px; max-height: 100px; overflow: hidden; }
+    .email-item .prices { margin-top: 10px; }
+    .price-badge { background: #27ae60; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-right: 5px; display: inline-block; margin-bottom: 3px; }
+
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+    .badge-waiting { background: #f39c12; color: white; }
+    .badge-resolved { background: #27ae60; color: white; }
+
+    .pending-item { border: 1px solid #eee; border-radius: 5px; padding: 15px; margin-bottom: 10px; }
+    .pending-item-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+    .pending-item textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; min-height: 60px; margin-bottom: 10px; }
+    .pending-item .actions { display: flex; gap: 10px; }
+    .pending-item button { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; }
+    .btn-resolve { background: #27ae60; color: white; }
+    .btn-delete { background: #e74c3c; color: white; }
+
+    .add-pending-form { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    .add-pending-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; min-height: 80px; margin-bottom: 10px; }
+    .add-pending-form button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+
+    .no-projects { text-align: center; padding: 60px 20px; color: #666; }
+    .loading { text-align: center; padding: 60px 20px; color: #666; }
+    #priceHistory .price-item { padding: 10px; border-bottom: 1px solid #eee; }
+    #priceHistory .price-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>外贸项目追踪系统</h1>
+    <div class="header-actions">
+      <button onclick="syncEmails()">同步邮件</button>
+      <button onclick="openAddPendingModal()">添加待确认</button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <select id="filterStage">
+      <option value="">所有阶段</option>
+      <option value="报价">报价</option>
+      <option value="确认">确认</option>
+      <option value="收模具首款">收模具首款</option>
+      <option value="开模">开模</option>
+      <option value="样品">样品</option>
+      <option value="收模具费余款">收模具费余款</option>
+      <option value="收产品首款">收产品首款</option>
+      <option value="量产">量产</option>
+      <option value="发货">发货</option>
+      <option value="收尾款">收尾款</option>
+    </select>
+    <select id="filterCustomer"><option value="">所有客户</option></select>
+    <input type="text" id="searchKeyword" placeholder="搜索项目名称...">
+  </div>
+
+  <div class="projects-grid" id="projectsGrid">
+    <div class="loading">加载中...</div>
+  </div>
+
+  <div class="modal" id="projectModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalProjectName">项目名称</h2>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('info')">基本信息</div>
+          <div class="tab" onclick="switchTab('emails')">邮件记录</div>
+          <div class="tab" onclick="switchTab('pending')">待确认事项</div>
+          <div class="tab" onclick="switchTab('history')">价格记录</div>
+        </div>
+
+        <div class="tab-content active" id="tab-info">
+          <div class="stage-flow" id="stageFlow"></div>
+          <div class="project-meta" id="projectMeta"></div>
+          <div class="keywords-section">
+            <h3>邮件关键词（用于自动匹配德语邮件）</h3>
+            <input type="text" id="keywordsInput" placeholder="输入关键词，用逗号分隔">
+            <button onclick="saveKeywords()">保存关键词</button>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-emails">
+          <div class="email-list" id="emailList"></div>
+        </div>
+
+        <div class="tab-content" id="tab-pending">
+          <div class="add-pending-form">
+            <h3>添加待确认事项</h3>
+            <textarea id="newPendingContent" placeholder="描述需要客户确认的问题..."></textarea>
+            <label><input type="checkbox" id="newPendingWaiting" checked> 等待客户回复</label>
+            <button onclick="addPendingItem()">添加</button>
+          </div>
+          <div class="pending-list" id="pendingList"></div>
+        </div>
+
+        <div class="tab-content" id="tab-history">
+          <div id="priceHistory"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // Firebase 配置
+    const firebaseConfig = {
+      apiKey: "AIzaSyCOv-4T1z5ljOS1aecqcb7QyDE_WMVR5Fw",
+      authDomain: "business-tracker-13524.firebaseapp.com",
+      projectId: "business-tracker-13524",
+      storageBucket: "business-tracker-13524.firebasestorage.app",
+      messagingSenderId: "604656795667",
+      appId: "1:604656795667:web:034196714a302a5f8f3fe6"
+    };
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const STAGES = ['报价', '确认', '收模具首款', '开模', '样品', '收模具费余款', '收产品首款', '量产', '发货', '收尾款'];
+    let currentProject = null;
+    let projects = [];
+
+    // 加载项目列表
+    async function loadProjects() {
+      try {
+        const snapshot = await db.collection('projects').get();
+        projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderProjects(projects);
+        updateCustomerFilter();
+      } catch (error) {
+        console.error('加载失败:', error);
+        document.getElementById('projectsGrid').innerHTML = '<div class="no-projects"><h3>加载失败</h3><p>请检查网络连接</p></div>';
+      }
+    }
+
+    function renderProjects(projects) {
+      const grid = document.getElementById('projectsGrid');
+      if (!projects || projects.length === 0) {
+        grid.innerHTML = '<div class="no-projects"><h3>暂无项目</h3><p>请先运行 Python 后端同步项目数据</p></div>';
+        return;
+      }
+
+      grid.innerHTML = projects.map(p => `
+        <div class="project-card" onclick="openProject('${p.id}')">
+          <div class="project-card-header" style="background: ${getStageColor(p.stage)}">
+            <div class="stage">${p.stage}</div>
+            <h3>${p.name}</h3>
+          </div>
+          <div class="project-card-body">
+            <div class="info"><span>客户</span><span>${p.customer || '-'}</span></div>
+            <div class="info"><span>材料</span><span>${p.material || '-'}</span></div>
+            <div class="info"><span>邮件</span><span class="email-count">${p.emails ? p.emails.length : 0} 封</span></div>
+            <div class="info"><span>待确认</span><span class="pending-count">${countPending(p)} 项</span></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getStageColor(stage) {
+      const colors = {
+        '报价': '#3498db', '确认': '#9b59b6', '收模具首款': '#e74c3c', '开模': '#f39c12',
+        '样品': '#1abc9c', '收模具费余款': '#e67e22', '收产品首款': '#2ecc71',
+        '量产': '#34495e', '发货': '#16a085', '收尾款': '#27ae60'
+      };
+      return colors[stage] || '#3498db';
+    }
+
+    function countPending(project) {
+      if (!project.pending_items) return 0;
+      return project.pending_items.filter(item => !item.resolved).length;
+    }
+
+    function updateCustomerFilter() {
+      const select = document.getElementById('filterCustomer');
+      const customers = [...new Set(projects.map(p => p.customer).filter(c => c))];
+      select.innerHTML = '<option value="">所有客户</option>' + customers.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    async function openProject(id) {
+      currentProject = projects.find(p => p.id === id);
+      if (!currentProject) return;
+
+      document.getElementById('modalProjectName').textContent = currentProject.name;
+      renderProjectModal();
+      document.getElementById('projectModal').classList.add('active');
+    }
+
+    function renderProjectModal() {
+      if (!currentProject) return;
+
+      const currentIdx = STAGES.indexOf(currentProject.stage);
+      document.getElementById('stageFlow').innerHTML = STAGES.map((s, i) => {
+        let cls = 'stage';
+        if (i < currentIdx) cls += ' completed';
+        else if (i === currentIdx) cls += ' active';
+        return `<div class="${cls}">${s}</div>`;
+      }).join('');
+
+      document.getElementById('projectMeta').innerHTML = `
+        <div class="meta-item"><label>客户</label><span>${currentProject.customer || '-'}</span></div>
+        <div class="meta-item"><label>材料</label><span>${currentProject.material || '-'}</span></div>
+        <div class="meta-item"><label>产品</label><span>${currentProject.product || '-'}</span></div>
+        <div class="meta-item"><label>创建日期</label><span>${currentProject.created || '-'}</span></div>
+      `;
+
+      document.getElementById('keywordsInput').value = (currentProject.keywords || []).join(', ');
+      renderEmails();
+      renderPendingItems();
+      renderPriceHistory();
+    }
+
+    function renderEmails() {
+      const list = document.getElementById('emailList');
+      const emails = currentProject.emails || [];
+
+      if (emails.length === 0) {
+        list.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">暂无邮件记录</p>';
+        return;
+      }
+
+      list.innerHTML = emails.map(e => `
+        <div class="email-item">
+          <h4>${e.subject || '(无主题)'}</h4>
+          <div class="meta">发件人: ${e.sender || '-'} | 日期: ${e.date || '-'}</div>
+          <div class="body">${e.body || ''}</div>
+          ${e.prices && e.prices.length > 0 ? `<div class="prices">${e.prices.map(p => `<span class="price-badge">€${p}</span>`).join('')}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderPendingItems() {
+      const list = document.getElementById('pendingList');
+      const items = currentProject.pending_items || [];
+
+      if (items.length === 0) {
+        list.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">暂无待确认事项</p>';
+        return;
+      }
+
+      list.innerHTML = items.map(item => `
+        <div class="pending-item">
+          <div class="pending-item-header">
+            <span class="badge ${item.resolved ? 'badge-resolved' : 'badge-waiting'}">${item.resolved ? '已解决' : '等待回复'}</span>
+            <span style="color:#666;font-size:12px;">创建于 ${item.created}</span>
+          </div>
+          <p>${item.content}</p>
+          ${item.notes ? `<p style="margin-top:10px;color:#666;font-size:13px;"><strong>备注:</strong> ${item.notes}</p>` : ''}
+          ${!item.resolved ? `
+            <div class="actions">
+              <button class="btn-resolve" onclick="resolvePending('${item.id}')">标记已解决</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderPriceHistory() {
+      const container = document.getElementById('priceHistory');
+      const history = currentProject.price_history || [];
+
+      if (history.length === 0) {
+        container.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">暂无价格记录</p>';
+        return;
+      }
+
+      container.innerHTML = '<div style="color:#666;font-size:13px;">从邮件中提取的价格信息：</div>' +
+        history.map(h => `<div class="price-item">${h.date}: €${h.price} - ${h.source}</div>`).join('');
+    }
+
+    async function saveKeywords() {
+      const keywords = document.getElementById('keywordsInput').value.split(',').map(k => k.trim()).filter(k => k);
+      await db.collection('projects').doc(currentProject.id).update({ keywords });
+      currentProject.keywords = keywords;
+      alert('关键词已保存');
+    }
+
+    async function addPendingItem() {
+      const content = document.getElementById('newPendingContent').value;
+      const waiting_reply = document.getElementById('newPendingWaiting').checked;
+
+      if (!content) { alert('请输入内容'); return; }
+
+      const items = currentProject.pending_items || [];
+      items.push({
+        id: Date.now().toString(),
+        content,
+        created: new Date().toISOString().split('T')[0],
+        waiting_reply,
+        resolved: false,
+        notes: ''
+      });
+
+      await db.collection('projects').doc(currentProject.id).update({ pending_items: items });
+      document.getElementById('newPendingContent').value = '';
+      await loadProjects();
+      currentProject = projects.find(p => p.id === currentProject.id);
+      renderProjectModal();
+    }
+
+    async function resolvePending(itemId) {
+      const items = currentProject.pending_items.map(item =>
+        item.id === itemId ? { ...item, resolved: true } : item
+      );
+      await db.collection('projects').doc(currentProject.id).update({ pending_items: items });
+      await loadProjects();
+      currentProject = projects.find(p => p.id === currentProject.id);
+      renderProjectModal();
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('projectModal').classList.remove('active');
+    }
+
+    async function syncEmails() {
+      alert('邮件同步需要运行 Python 后端。请确保后端正在运行。\n\n参考 README.md 配置和启动后端。');
+    }
+
+    function openAddPendingModal() {
+      alert('请先选择一个项目，打开项目详情后添加待确认事项');
+    }
+
+    // 筛选
+    document.getElementById('filterStage').addEventListener('change', filterProjects);
+    document.getElementById('filterCustomer').addEventListener('change', filterProjects);
+    document.getElementById('searchKeyword').addEventListener('input', filterProjects);
+
+    function filterProjects() {
+      const stage = document.getElementById('filterStage').value;
+      const customer = document.getElementById('filterCustomer').value;
+      const keyword = document.getElementById('searchKeyword').value.toLowerCase();
+
+      const filtered = projects.filter(p => {
+        if (stage && p.stage !== stage) return false;
+        if (customer && p.customer !== customer) return false;
+        if (keyword && !p.name.toLowerCase().includes(keyword)) return false;
+        return true;
+      });
+
+      renderProjects(filtered);
+    }
+
+    // 启动
+    loadProjects();
+  </script>
+</body>
+</html>
