@@ -68,7 +68,7 @@ python app.py
 待确认事项超1天未回复，同时触发：
 1. **Windows 弹窗** - 电脑上弹出通知
 2. **飞书** - 发送到飞书群/手机
-3. **邮件** - 发送到 info@hxpmold.com
+3. **邮件** - 发送到 service@hxpmold.com
 
 ## 邮件关键词
 
