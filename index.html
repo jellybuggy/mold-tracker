@@ -53,10 +53,35 @@
     .email-list, .pending-list { max-height: 400px; overflow-y: auto; }
     .email-item { border: 1px solid #eee; border-radius: 5px; padding: 15px; margin-bottom: 10px; }
     .email-item h4 { font-size: 14px; margin-bottom: 5px; }
+    .email-type-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    .type-报价 { background: #3498db; color: white; }
+    .type-样品 { background: #9b59b6; color: white; }
+    .type-样品确认 { background: #8e44ad; color: white; }
+    .type-订单 { background: #e74c3c; color: white; }
+    .type-确认合同 { background: #c0392b; color: white; }
+    .type-发货 { background: #f39c12; color: white; }
+    .type-发货通知 { background: #d68910; color: white; }
+    .type-付款 { background: #27ae60; color: white; }
+    .type-收款确认 { background: #1e8449; color: white; }
+    .type-发票 { background: #16a085; color: white; }
+    .type-技术问题 { background: #34495e; color: white; }
+    .type-投诉 { background: #c0392b; color: white; }
+    .type-模具进度 { background: #7f8c8d; color: white; }
+    .type-一般沟通 { background: #95a5a6; color: white; }
+
     .email-item .meta { color: #666; font-size: 12px; margin-bottom: 10px; }
     .email-item .body { font-size: 13px; color: #333; background: #f9f9f9; padding: 10px; border-radius: 5px; max-height: 100px; overflow: hidden; }
     .email-item .prices { margin-top: 10px; }
     .price-badge { background: #27ae60; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-right: 5px; display: inline-block; margin-bottom: 3px; }
+    .email-item .attachments { margin-top: 8px; color: #666; font-size: 12px; }
+    .email-item .attachments span { background: #ecf0f1; padding: 2px 6px; border-radius: 3px; margin-right: 5px; display: inline-block; margin-bottom: 2px; }
 
     .badge { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
     .badge-waiting { background: #f39c12; color: white; }
@@ -123,11 +148,16 @@
           <div class="tab" onclick="switchTab('emails')">邮件记录</div>
           <div class="tab" onclick="switchTab('pending')">待确认事项</div>
           <div class="tab" onclick="switchTab('history')">价格记录</div>
+          <div class="tab" onclick="switchTab('manual')">手动记录</div>
         </div>
 
         <div class="tab-content active" id="tab-info">
           <div class="stage-flow" id="stageFlow"></div>
           <div class="project-meta" id="projectMeta"></div>
+          <div class="next-action-box" id="nextActionBox" style="background:#f39c12;color:white;padding:15px;border-radius:5px;margin-bottom:20px;display:none;">
+            <h4>下一步该做什么</h4>
+            <p id="nextActionText" style="margin-top:10px;font-size:16px;"></p>
+          </div>
           <div class="keywords-section">
             <h3>邮件关键词（用于自动匹配德语邮件）</h3>
             <input type="text" id="keywordsInput" placeholder="输入关键词，用逗号分隔">
@@ -151,6 +181,21 @@
 
         <div class="tab-content" id="tab-history">
           <div id="priceHistory"></div>
+        </div>
+
+        <div class="tab-content" id="tab-manual">
+          <div class="add-pending-form">
+            <h3>添加电话/WhatsApp/备注记录</h3>
+            <select id="manualType" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;margin-bottom:10px;">
+              <option value="call">📞 电话</option>
+              <option value="whatsapp">💬 WhatsApp</option>
+              <option value="note">📝 备注</option>
+            </select>
+            <input type="date" id="manualDate" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;margin-bottom:10px;">
+            <textarea id="manualContent" placeholder="记录沟通内容：客户说了什么，你回复了什么..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;resize:vertical;min-height:100px;margin-bottom:10px;"></textarea>
+            <button onclick="addManualEntry()" style="background:#9b59b6;color:white;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;">添加记录</button>
+          </div>
+          <div class="pending-list" id="manualList"></div>
         </div>
       </div>
     </div>
@@ -210,6 +255,7 @@
             <div class="info"><span>材料</span><span>${p.material || '-'}</span></div>
             <div class="info"><span>邮件</span><span class="email-count">${p.emails ? p.emails.length : 0} 封</span></div>
             <div class="info"><span>待确认</span><span class="pending-count">${countPending(p)} 项</span></div>
+            ${p.next_action ? `<div class="info" style="color:#e67e22;font-size:12px;margin-top:5px;"><span>下一步</span><span>${p.next_action}</span></div>` : ''}
           </div>
         </div>
       `).join('');
@@ -262,10 +308,21 @@
         <div class="meta-item"><label>创建日期</label><span>${currentProject.created || '-'}</span></div>
       `;
 
+      // 显示下一步
+      const nextBox = document.getElementById('nextActionBox');
+      const nextText = document.getElementById('nextActionText');
+      if (currentProject.next_action) {
+        nextBox.style.display = 'block';
+        nextText.textContent = currentProject.next_action;
+      } else {
+        nextBox.style.display = 'none';
+      }
+
       document.getElementById('keywordsInput').value = (currentProject.keywords || []).join(', ');
       renderEmails();
       renderPendingItems();
       renderPriceHistory();
+      renderManualEntries();
     }
 
     function renderEmails() {
@@ -277,14 +334,59 @@
         return;
       }
 
-      list.innerHTML = emails.map(e => `
-        <div class="email-item">
-          <h4>${e.subject || '(无主题)'}</h4>
+      // 按类型分组显示
+      const grouped = {};
+      emails.forEach(e => {
+        const type = e.email_type || '一般沟通';
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(e);
+      });
+
+      let html = '<div style="margin-bottom:20px;"><h4 style="margin-bottom:10px;">按类型筛选：</h4>';
+      html += '<select id="emailTypeFilter" onchange="filterEmailsByType()" style="padding:8px;border-radius:5px;border:1px solid #ddd;">';
+      html += '<option value="">全部类型</option>';
+      Object.keys(grouped).forEach(type => {
+        html += `<option value="${type}">${type} (${grouped[type].length})</option>`;
+      });
+      html += '</select></div>';
+
+      html += '<div id="emailListContainer">';
+      emails.forEach(e => {
+        const priceBadges = e.prices && e.prices.length > 0
+          ? e.prices.map(p => `<span class="price-badge">€${p}</span>`).join('')
+          : '';
+        const attachmentHtml = e.attachments && e.attachments.length > 0
+          ? `<div class="attachments">附件: ${e.attachments.map(a => `<span>${a}</span>`).join('')}</div>`
+          : '';
+        const kwHtml = e.matched_keywords && e.matched_keywords.length > 0
+          ? `<div style="margin-top:5px;color:#888;font-size:11px;">匹配: ${e.matched_keywords.join(', ')}</div>`
+          : '';
+
+        html += `
+        <div class="email-item" data-type="${e.email_type || '一般沟通'}">
+          <h4>${e.subject || '(无主题)'} <span class="email-type-badge type-${e.email_type || '一般沟通'}">${e.email_type || '一般沟通'}</span></h4>
           <div class="meta">发件人: ${e.sender || '-'} | 日期: ${e.date || '-'}</div>
-          <div class="body">${e.body || ''}</div>
-          ${e.prices && e.prices.length > 0 ? `<div class="prices">${e.prices.map(p => `<span class="price-badge">€${p}</span>`).join('')}</div>` : ''}
-        </div>
-      `).join('');
+          ${kwHtml}
+          <div class="body">${e.body_preview || e.body || ''}</div>
+          ${priceBadges ? `<div class="prices">${priceBadges}</div>` : ''}
+          ${attachmentHtml}
+        </div>`;
+      });
+      html += '</div>';
+
+      list.innerHTML = html;
+    }
+
+    function filterEmailsByType() {
+      const type = document.getElementById('emailTypeFilter').value;
+      const items = document.querySelectorAll('.email-item');
+      items.forEach(item => {
+        if (!type || item.dataset.type === type) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
     }
 
     function renderPendingItems() {
@@ -364,6 +466,57 @@
       await loadProjects();
       currentProject = projects.find(p => p.id === currentProject.id);
       renderProjectModal();
+    }
+
+    function renderManualEntries() {
+      const list = document.getElementById('manualList');
+      const entries = currentProject.manual_entries || [];
+
+      if (entries.length === 0) {
+        list.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">暂无手动记录</p>';
+        return;
+      }
+
+      const typeIcons = { call: '📞', whatsapp: '💬', note: '📝' };
+      list.innerHTML = entries.slice().reverse().map(e => `
+        <div class="pending-item">
+          <div class="pending-item-header">
+            <span class="badge badge-waiting">${typeIcons[e.type] || '📝'} ${e.type === 'call' ? '电话' : e.type === 'whatsapp' ? 'WhatsApp' : '备注'}</span>
+            <span style="color:#666;font-size:12px;">${e.date || e.created}</span>
+          </div>
+          <p>${e.content}</p>
+        </div>
+      `).join('');
+    }
+
+    async function addManualEntry() {
+      const type = document.getElementById('manualType').value;
+      const content = document.getElementById('manualContent').value;
+      const date = document.getElementById('manualDate').value;
+
+      if (!content) { alert('请输入内容'); return; }
+
+      try {
+        const response = await fetch(`/api/project/${currentProject.id}/manual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, content, date })
+        });
+
+        if (response.ok) {
+          document.getElementById('manualContent').value = '';
+          document.getElementById('manualDate').value = '';
+          await loadProjects();
+          currentProject = projects.find(p => p.id === currentProject.id);
+          renderProjectModal();
+          alert('记录已添加');
+        } else {
+          alert('添加失败');
+        }
+      } catch (error) {
+        console.error('添加记录失败:', error);
+        alert('添加失败，请确保后端正在运行');
+      }
     }
 
     function switchTab(tabName) {
