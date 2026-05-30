@@ -341,7 +341,10 @@
         let cls = 'stage';
         if (i < currentIdx) cls += ' completed';
         else if (i === currentIdx) cls += ' active';
-        return `<div class="${cls}">${s}</div>`;
+        return `<div class="${cls}" onclick="setProjectStage('${s}')" style="cursor:pointer;position:relative;">
+          ${s}
+          <span onclick="event.stopPropagation();openStageUpload('${s}')" style="margin-left:6px;font-size:10px;opacity:0.7;" title="上传文件">📎</span>
+        </div>`;
       }).join('');
 
       document.getElementById('projectMeta').innerHTML = `
@@ -501,6 +504,16 @@
       alert('基本信息已保存');
     }
 
+    async function setProjectStage(stage) {
+      if (!confirm(`确认将项目阶段改为「${stage}」？`)) return;
+      await db.collection('projects').doc(currentProject.id).update({ stage });
+      currentProject.stage = stage;
+      renderProjectModal();
+      await loadProjects();
+      currentProject = projects.find(p => p.id === currentProject.id);
+      renderProjectModal();
+    }
+
     async function addPendingItem() {
       const content = document.getElementById('newPendingContent').value;
       const waiting_reply = document.getElementById('newPendingWaiting').checked;
@@ -555,10 +568,37 @@
       `).join('');
     }
 
-    function renderFiles() {
-      const container = document.getElementById('filesList');
-      const uploads = currentProject.uploads || [];
-      const currentStage = currentProject.stage;
+    function openStageUpload(stage) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = async () => {
+        if (!input.files.length) return;
+        const uploads = currentProject.uploads || [];
+        const storageRef = firebase.storage().ref();
+        for (const file of input.files) {
+          try {
+            const ref = storageRef.child(`projects/${currentProject.id}/${stage}/${Date.now()}_${file.name}`);
+            await ref.put(file);
+            const url = await ref.getDownloadURL();
+            uploads.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+              stage,
+              file_name: file.name,
+              file_url: url,
+              file_type: file.type,
+              uploaded_at: new Date().toISOString().split('T')[0],
+              uploaded_by: 'system'
+            });
+          } catch (e) { console.error('上传失败:', e); }
+        }
+        await db.collection('projects').doc(currentProject.id).update({ uploads });
+        currentProject.uploads = uploads;
+        renderFiles();
+        alert(`${input.files.length} 个文件已上传到「${stage}」`);
+      };
+      input.click();
+    }
 
       // Group by stage
       const byStage = {};
