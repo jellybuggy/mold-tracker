@@ -117,6 +117,7 @@
   <div class="filters">
     <select id="filterStage">
       <option value="">所有阶段</option>
+      <option value="立项">立项</option>
       <option value="报价">报价</option>
       <option value="确认">确认</option>
       <option value="收模具首款">收模具首款</option>
@@ -149,15 +150,52 @@
           <div class="tab" onclick="switchTab('pending')">待确认事项</div>
           <div class="tab" onclick="switchTab('history')">价格记录</div>
           <div class="tab" onclick="switchTab('manual')">手动记录</div>
+          <div class="tab" onclick="switchTab('files')">文件</div>
         </div>
 
         <div class="tab-content active" id="tab-info">
           <div class="stage-flow" id="stageFlow"></div>
-          <div class="project-meta" id="projectMeta"></div>
           <div class="next-action-box" id="nextActionBox" style="background:#f39c12;color:white;padding:15px;border-radius:5px;margin-bottom:20px;display:none;">
             <h4>下一步该做什么</h4>
             <p id="nextActionText" style="margin-top:10px;font-size:16px;"></p>
           </div>
+
+          <div class="basic-info-section" style="background:#f9f9f9;padding:20px;border-radius:8px;margin-bottom:20px;">
+            <h3 style="margin-bottom:15px;">📋 项目基本信息</h3>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;">
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">客户全称</label>
+                <input type="text" id="infoCustomerName" placeholder="例如：Hebrok GmbH" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">联系人</label>
+                <input type="text" id="infoContactPerson" placeholder="联系人姓名" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">联系电话</label>
+                <input type="text" id="infoContactPhone" placeholder="电话" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">邮箱</label>
+                <input type="email" id="infoContactEmail" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+              <div style="grid-column:span 2;">
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">产品要求</label>
+                <textarea id="infoProductReq" placeholder="产品名称、规格、材料要求等" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;resize:vertical;min-height:60px;"></textarea>
+              </div>
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">预算范围</label>
+                <input type="text" id="infoBudget" placeholder="例如：€5000-8000" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+              <div>
+                <label style="display:block;color:#666;font-size:12px;margin-bottom:5px;">项目备注</label>
+                <input type="text" id="infoRemarks" placeholder="备注信息" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;">
+              </div>
+            </div>
+            <button onclick="saveBasicInfo()" style="margin-top:15px;background:#27ae60;color:white;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;">保存基本信息</button>
+          </div>
+
+          <div class="project-meta" id="projectMeta"></div>
           <div class="keywords-section">
             <h3>邮件关键词（用于自动匹配德语邮件）</h3>
             <input type="text" id="keywordsInput" placeholder="输入关键词，用逗号分隔">
@@ -197,6 +235,10 @@
           </div>
           <div class="pending-list" id="manualList"></div>
         </div>
+
+        <div class="tab-content" id="tab-files">
+          <div id="filesList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -204,6 +246,7 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage-compat.js"></script>
 
   <script>
     // Firebase 配置
@@ -220,7 +263,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const STAGES = ['报价', '确认', '收模具首款', '开模', '样品', '收模具费余款', '收产品首款', '量产', '发货', '收尾款'];
+    const STAGES = ['立项', '报价', '确认', '收模具首款', '开模', '样品', '收模具费余款', '收产品首款', '量产', '发货', '收尾款'];
     let currentProject = null;
     let projects = [];
 
@@ -263,7 +306,7 @@
 
     function getStageColor(stage) {
       const colors = {
-        '报价': '#3498db', '确认': '#9b59b6', '收模具首款': '#e74c3c', '开模': '#f39c12',
+        '立项': '#2c3e50', '报价': '#3498db', '确认': '#9b59b6', '收模具首款': '#e74c3c', '开模': '#f39c12',
         '样品': '#1abc9c', '收模具费余款': '#e67e22', '收产品首款': '#2ecc71',
         '量产': '#34495e', '发货': '#16a085', '收尾款': '#27ae60'
       };
@@ -319,10 +362,18 @@
       }
 
       document.getElementById('keywordsInput').value = (currentProject.keywords || []).join(', ');
+      document.getElementById('infoCustomerName').value = currentProject.customer_name || '';
+      document.getElementById('infoContactPerson').value = currentProject.contact_person || '';
+      document.getElementById('infoContactPhone').value = currentProject.contact_phone || '';
+      document.getElementById('infoContactEmail').value = currentProject.contact_email || '';
+      document.getElementById('infoProductReq').value = currentProject.product_requirements || '';
+      document.getElementById('infoBudget').value = currentProject.budget_range || '';
+      document.getElementById('infoRemarks').value = currentProject.remarks || '';
       renderEmails();
       renderPendingItems();
       renderPriceHistory();
       renderManualEntries();
+      renderFiles();
     }
 
     function renderEmails() {
@@ -435,6 +486,21 @@
       alert('关键词已保存');
     }
 
+    async function saveBasicInfo() {
+      const info = {
+        customer_name: document.getElementById('infoCustomerName').value,
+        contact_person: document.getElementById('infoContactPerson').value,
+        contact_phone: document.getElementById('infoContactPhone').value,
+        contact_email: document.getElementById('infoContactEmail').value,
+        product_requirements: document.getElementById('infoProductReq').value,
+        budget_range: document.getElementById('infoBudget').value,
+        remarks: document.getElementById('infoRemarks').value
+      };
+      await db.collection('projects').doc(currentProject.id).update(info);
+      Object.assign(currentProject, info);
+      alert('基本信息已保存');
+    }
+
     async function addPendingItem() {
       const content = document.getElementById('newPendingContent').value;
       const waiting_reply = document.getElementById('newPendingWaiting').checked;
@@ -487,6 +553,89 @@
           <p>${e.content}</p>
         </div>
       `).join('');
+    }
+
+    function renderFiles() {
+      const container = document.getElementById('filesList');
+      const uploads = currentProject.uploads || [];
+      const currentStage = currentProject.stage;
+
+      // Group by stage
+      const byStage = {};
+      STAGES.forEach(s => byStage[s] = []);
+      uploads.forEach(f => {
+        if (byStage[f.stage]) byStage[f.stage].push(f);
+        else byStage[currentStage].push(f);
+      });
+
+      let html = '<div style="margin-bottom:20px;"><h4 style="margin-bottom:10px;">选择阶段上传文件：</h4>';
+      html += '<select id="fileStageSelect" style="padding:8px;border-radius:5px;border:1px solid #ddd;margin-bottom:10px;">';
+      STAGES.forEach(s => {
+        html += `<option value="${s}" ${s === currentStage ? 'selected' : ''}>${s}</option>`;
+      });
+      html += '</select>';
+      html += '<input type="file" id="fileInput" multiple style="margin-left:10px;">';
+      html += '<button onclick="uploadFiles()" style="margin-left:10px;background:#3498db;color:white;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">上传</button>';
+      html += '</div>';
+
+      // Show files grouped by stage
+      html += '<div id="filesByStage">';
+      STAGES.forEach(s => {
+        const files = byStage[s];
+        if (files.length === 0) return;
+        html += `<div style="margin-bottom:15px;padding:10px;background:#f9f9f9;border-radius:5px;">`;
+        html += `<h5 style="margin-bottom:8px;color:#666;font-size:13px;">📁 ${s} (${files.length})</h5>`;
+        files.forEach(f => {
+          html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:white;border-radius:3px;margin-bottom:5px;">
+            <span style="font-size:13px;">${f.file_name}</span>
+            <div>
+              <span style="color:#888;font-size:11px;margin-right:10px;">${f.uploaded_at}</span>
+              <a href="${f.file_url}" target="_blank" style="color:#3498db;text-decoration:none;font-size:12px;">下载</a>
+            </div>
+          </div>`;
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+
+      if (uploads.length === 0) {
+        html += '<p style="color:#666;text-align:center;padding:20px;">暂无上传文件</p>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    async function uploadFiles() {
+      const stage = document.getElementById('fileStageSelect').value;
+      const input = document.getElementById('fileInput');
+      if (!input.files.length) { alert('请选择文件'); return; }
+
+      const uploads = currentProject.uploads || [];
+      const storageRef = firebase.storage().ref();
+
+      for (const file of input.files) {
+        try {
+          const ref = storageRef.child(`projects/${currentProject.id}/${stage}/${Date.now()}_${file.name}`);
+          await ref.put(file);
+          const url = await ref.getDownloadURL();
+          uploads.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            stage,
+            file_name: file.name,
+            file_url: url,
+            file_type: file.type,
+            uploaded_at: new Date().toISOString().split('T')[0],
+            uploaded_by: 'system'
+          });
+        } catch (e) {
+          console.error('上传失败:', e);
+        }
+      }
+
+      await db.collection('projects').doc(currentProject.id).update({ uploads });
+      currentProject.uploads = uploads;
+      renderFiles();
+      alert('文件已上传');
     }
 
     async function addManualEntry() {

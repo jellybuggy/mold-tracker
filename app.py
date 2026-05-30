@@ -14,7 +14,7 @@ from pathlib import Path
 from flask import Flask, request, jsonify
 import imaplib
 import email
-from email.header import decode_message_header
+from email.header import decode_header
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -23,7 +23,11 @@ import requests
 import firebase_admin
 from firebase_admin import credentials, firestore
 from apscheduler.schedulers.background import BackgroundScheduler
-from win10toast import ToastNotifier
+try:
+    from win10toast import ToastNotifier
+    WIN10TOAST_OK = True
+except ImportError:
+    WIN10TOAST_OK = False
 
 # ========== Flask API ==========
 api_app = Flask(__name__)
@@ -115,6 +119,8 @@ logger = logging.getLogger(__name__)
 # 邮件类型 → 触发推进到哪个阶段
 # 规则：从当前阶段出发，遇到匹配的邮件类型就推进
 STAGE_ADVANCE_RULES = {
+    # 项目立项
+    '立项': ['projekt', 'project start', '立项', '项目启动', 'new project', 'project initialization'],
     # 收到报价 Angebot → 进入报价阶段
     '报价': ['angebot', 'preis', 'quote', 'quotation', 'pricing', 'kosten', '成本', '报价', '价格', 'offer'],
     # 收到订单 Bestellung → 进入确认阶段
@@ -140,7 +146,7 @@ STAGE_ADVANCE_RULES = {
 }
 
 # 阶段顺序
-STAGES = ['报价', '确认', '收模具首款', '开模', '样品', '收模具费余款', '收产品首款', '量产', '发货', '收尾款']
+STAGES = ['立项', '报价', '确认', '收模具首款', '开模', '样品', '收模具费余款', '收产品首款', '量产', '发货', '收尾款']
 
 def get_stage_from_email(email_type, subject, body):
     """
@@ -163,7 +169,7 @@ def advance_project_stage(project_data, emails):
     只进不退：从当前阶段出发，找到第一封能推进的邮件就停在那个阶段
     返回：(新阶段, 触发推进的邮件主题)
     """
-    current_stage = project_data.get('stage', '报价')
+    current_stage = project_data.get('stage', '立项')
     current_idx = STAGES.index(current_stage) if current_stage in STAGES else 0
 
     # 按时间顺序扫描邮件（最早的在前，最新的在后）
@@ -227,7 +233,7 @@ def get_next_action(project_data):
     根据当前阶段返回下一步应该做什么
     返回：下一步动作描述
     """
-    current_stage = project_data.get('stage', '报价')
+    current_stage = project_data.get('stage', '立项')
     current_idx = STAGES.index(current_stage) if current_stage in STAGES else 0
 
     next_stage = STAGES[current_idx + 1] if current_idx < len(STAGES) - 1 else None
@@ -236,6 +242,7 @@ def get_next_action(project_data):
         return {'action': '项目已完成所有阶段', 'next_stage': None}
 
     next_actions = {
+        '立项': '收集客户信息，填写项目基本信息，准备报价材料',
         '报价': '等待客户确认报价 (Angebot bestätigen)',
         '确认': '等待客户下订单 (Bestellung)',
         '收模具首款': '等待客户支付模具首款 (Werkzeug Anzahlung)',
@@ -341,10 +348,16 @@ def decode_header_str(header):
     """解码邮件头部"""
     if not header:
         return ''
-    decoded_parts = decode_message_header(header, 'utf-8')
+    decoded_parts = decode_header(header)
     if isinstance(decoded_parts, tuple):
-        return decoded_parts[0]
-    return decoded_parts
+        return decoded_parts[0] or ''
+    result = ''
+    for part, charset in decoded_parts:
+        if isinstance(part, bytes):
+            result += part.decode(charset or 'utf-8', errors='ignore')
+        else:
+            result += part
+    return result
 
 
 # ========== 邮件分类 ==========
@@ -696,12 +709,13 @@ def send_reminders(project_name, content, config):
     message = f"【待确认事项超期】\n项目: {project_name}\n内容: {content}"
 
     # 1. Windows 弹窗
-    try:
-        toaster = ToastNotifier()
-        toaster.show_toast("外贸项目追踪系统", message, duration=10)
-        logger.info(f"Windows 弹窗已发送: {project_name}")
-    except Exception as e:
-        logger.warning(f"Windows 弹窗失败: {e}")
+    if WIN10TOAST_OK:
+        try:
+            toaster = ToastNotifier()
+            toaster.show_toast("外贸项目追踪系统", message, duration=10)
+            logger.info(f"Windows 弹窗已发送: {project_name}")
+        except Exception as e:
+            logger.warning(f"Windows 弹窗失败: {e}")
 
     # 2. 飞书 Webhook
     feishu_webhook = config.get('feishu_webhook', '')
