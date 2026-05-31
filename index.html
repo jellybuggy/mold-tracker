@@ -361,9 +361,9 @@
         let cls = 'stage';
         if (i < currentIdx) cls += ' completed';
         else if (i === currentIdx) cls += ' active';
-        return `<div class="${cls}" onclick="setProjectStage('${s}')" style="cursor:pointer;position:relative;">
+        return `<div class="${cls}" style="position:relative;">
           ${s}
-          <span onclick="event.stopPropagation();openStageUpload('${s}')" style="margin-left:6px;font-size:10px;opacity:0.7;" title="上传文件">📎</span>
+          <span onclick="event.stopPropagation();pickStageFiles('${s}')" style="margin-left:6px;font-size:10px;opacity:0.7;cursor:pointer;" title="上传文件到此阶段">📎</span>
         </div>`;
       }).join('');
 
@@ -615,7 +615,7 @@
         await db.collection('projects').doc(currentProject.id).update({ uploads });
         currentProject.uploads = uploads;
         renderFiles();
-        alert(`${input.files.length} 个文件已上传到「${stage}」`);
+        switchTab('files');
       };
       input.click();
     }
@@ -702,6 +702,7 @@
       await db.collection('projects').doc(currentProject.id).update({ uploads });
       currentProject.uploads = uploads;
       renderFiles();
+      alert('上传成功');
     }
 
     async function deleteFile(fileId) {
