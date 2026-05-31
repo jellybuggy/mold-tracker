@@ -103,6 +103,21 @@
     .loading { text-align: center; padding: 60px 20px; color: #666; }
     #priceHistory .price-item { padding: 10px; border-bottom: 1px solid #eee; }
     #priceHistory .price-item:last-child { border-bottom: none; }
+    .stage-files-section { margin-bottom: 15px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    .stage-files-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #f5f7fa; cursor: default; }
+    .stage-files-header h5 { margin: 0; font-size: 14px; color: #333; }
+    .stage-files-body { padding: 10px 15px; }
+    .file-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .file-thumb { width: 120px; text-align: center; border: 1px solid #eee; border-radius: 6px; overflow: hidden; background: white; }
+    .file-thumb img { width: 120px; height: 90px; object-fit: cover; cursor: pointer; display: block; }
+    .file-thumb .file-info { padding: 4px 6px; font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-generic { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f9f9f9; border-radius: 5px; font-size: 13px; }
+    .file-generic a { color: #3498db; text-decoration: none; }
+    .file-delete { color: #e74c3c; cursor: pointer; font-size: 12px; margin-left: 6px; }
+    .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+    .lightbox .close-btn { position: fixed; top: 20px; right: 30px; color: white; font-size: 36px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -135,6 +150,11 @@
 
   <div class="projects-grid" id="projectsGrid">
     <div class="loading">加载中...</div>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="close-btn">&times;</span>
+    <img id="lightboxImg" src="">
   </div>
 
   <div class="modal" id="projectModal">
@@ -612,40 +632,93 @@
         else byStage[currentStage].push(f);
       });
 
-      let html = '<div style="margin-bottom:20px;"><h4 style="margin-bottom:10px;">选择阶段上传文件：</h4>';
-      html += '<select id="fileStageSelect" style="padding:8px;border-radius:5px;border:1px solid #ddd;margin-bottom:10px;">';
-      STAGES.forEach(s => {
-        html += `<option value="${s}" ${s === currentStage ? 'selected' : ''}>${s}</option>`;
-      });
-      html += '</select>';
-      html += '<input type="file" id="fileInput" multiple style="margin-left:10px;">';
-      html += '<button onclick="uploadFiles()" style="margin-left:10px;background:#3498db;color:white;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">上传</button>';
-      html += '</div>';
-
-      html += '<div id="filesByStage">';
+      let html = '';
       STAGES.forEach(s => {
         const files = byStage[s];
-        if (files.length === 0) return;
-        html += `<div style="margin-bottom:15px;padding:10px;background:#f9f9f9;border-radius:5px;">`;
-        html += `<h5 style="margin-bottom:8px;color:#666;font-size:13px;">📁 ${s} (${files.length})</h5>`;
-        files.forEach(f => {
-          html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:white;border-radius:3px;margin-bottom:5px;">
-            <span style="font-size:13px;">${f.file_name}</span>
-            <div>
-              <span style="color:#888;font-size:11px;margin-right:10px;">${f.uploaded_at}</span>
-              <a href="${f.file_url}" target="_blank" style="color:#3498db;text-decoration:none;font-size:12px;">下载</a>
-            </div>
-          </div>`;
-        });
-        html += '</div>';
+        const isCurrent = s === currentStage;
+        html += `<div class="stage-files-section">`;
+        html += `<div class="stage-files-header" style="${isCurrent ? 'background:#e8f4fd;' : ''}">`;
+        html += `<h5>${isCurrent ? '▶ ' : ''}${s} (${files.length})</h5>`;
+        html += `<div>`;
+        html += `<button onclick="pickStageFiles('${s}')" style="background:#3498db;color:white;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;">+ 上传文件</button>`;
+        html += `</div></div>`;
+        html += `<div class="stage-files-body">`;
+        if (files.length === 0) {
+          html += `<p style="color:#aaa;font-size:12px;margin:0;">暂无文件</p>`;
+        } else {
+          html += '<div class="file-grid">';
+          files.forEach(f => {
+            const isImage = f.file_type && f.file_type.startsWith('image/');
+            if (isImage) {
+              html += `<div class="file-thumb">
+                <img src="${f.file_url}" onclick="openLightbox('${f.file_url}')" title="${f.file_name}">
+                <div class="file-info">${f.file_name}</div>
+                <div style="padding:2px 6px;"><span class="file-delete" onclick="deleteFile('${f.id}')">删除</span></div>
+              </div>`;
+            } else {
+              html += `<div class="file-generic">
+                <a href="${f.file_url}" target="_blank">${f.file_name}</a>
+                <span style="color:#aaa;font-size:11px;">${f.uploaded_at}</span>
+                <span class="file-delete" onclick="deleteFile('${f.id}')">删除</span>
+              </div>`;
+            }
+          });
+          html += '</div>';
+        }
+        html += '</div></div>';
       });
-      html += '</div>';
-
-      if (uploads.length === 0) {
-        html += '<p style="color:#666;text-align:center;padding:20px;">暂无上传文件</p>';
-      }
 
       container.innerHTML = html;
+    }
+
+    function pickStageFiles(stage) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = () => doUpload(stage, input.files);
+      input.click();
+    }
+
+    async function doUpload(stage, files) {
+      if (!files || !files.length) return;
+      const uploads = currentProject.uploads || [];
+      const storageRef = firebase.storage().ref();
+      for (const file of files) {
+        try {
+          const ref = storageRef.child(`projects/${currentProject.id}/${stage}/${Date.now()}_${file.name}`);
+          await ref.put(file);
+          const url = await ref.getDownloadURL();
+          uploads.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            stage,
+            file_name: file.name,
+            file_url: url,
+            file_type: file.type,
+            uploaded_at: new Date().toISOString().split('T')[0],
+            uploaded_by: 'system'
+          });
+        } catch (e) { console.error('上传失败:', e); }
+      }
+      await db.collection('projects').doc(currentProject.id).update({ uploads });
+      currentProject.uploads = uploads;
+      renderFiles();
+    }
+
+    async function deleteFile(fileId) {
+      if (!confirm('确认删除此文件？')) return;
+      const uploads = (currentProject.uploads || []).filter(f => f.id !== fileId);
+      await db.collection('projects').doc(currentProject.id).update({ uploads });
+      currentProject.uploads = uploads;
+      renderFiles();
+    }
+
+    function openLightbox(url) {
+      document.getElementById('lightboxImg').src = url;
+      document.getElementById('lightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
     }
 
     async function uploadFiles() {
