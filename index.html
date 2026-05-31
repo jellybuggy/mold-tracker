@@ -600,7 +600,11 @@
       input.click();
     }
 
-      // Group by stage
+    function renderFiles() {
+      const container = document.getElementById('filesList');
+      const uploads = currentProject.uploads || [];
+      const currentStage = currentProject.stage;
+
       const byStage = {};
       STAGES.forEach(s => byStage[s] = []);
       uploads.forEach(f => {
@@ -618,7 +622,6 @@
       html += '<button onclick="uploadFiles()" style="margin-left:10px;background:#3498db;color:white;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">上传</button>';
       html += '</div>';
 
-      // Show files grouped by stage
       html += '<div id="filesByStage">';
       STAGES.forEach(s => {
         const files = byStage[s];
